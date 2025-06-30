@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktiver Projektplan: KI-Wetter-App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Calm Harmony -->
+    <!-- Application Structure Plan: The application is structured as an interactive project dashboard. The four Epics from the report are presented as tabs for clear navigation. This structure is more user-friendly than a long document, allowing users to focus on one phase at a time. Clicking a tab reveals the user stories for that Epic as individual cards. Each card has an interactive status selector (To Do, In Progress, Done), which provides a sense of a living document. A summary donut chart at the top dynamically visualizes the overall project progress, offering an immediate high-level overview. This dashboard approach was chosen to transform the static plan into a functional, engaging, and easily digestible tool for tracking progress. -->
+    <!-- Visualization & Content Choices: 
+        - Project Overview -> Goal: Summarize -> Viz: Donut Chart (Chart.js) -> Interaction: Updates automatically when a story's status changes -> Justification: Provides a quick, visual summary of the project's health.
+        - Epics -> Goal: Organize/Navigate -> Viz: Tabbed Navigation (HTML/Tailwind/JS) -> Interaction: Click to switch between Epic views -> Justification: Breaks down the project into manageable phases, preventing information overload.
+        - User Stories -> Goal: Inform/Detail -> Viz: Cards in a Grid (HTML/Tailwind) -> Interaction: Status can be changed via a dropdown -> Justification: Presents detailed tasks in a structured, readable format.
+        - Status -> Goal: Track Progress -> Viz: Color-coded tags and dropdowns (HTML/Tailwind) -> Interaction: User selects a new status -> Justification: Makes the plan interactive and allows for real-time progress tracking.
+        - All content is rendered dynamically from a single JavaScript data object, making it easy to update. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            background-color: #f8f9fa; 
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://rsms.me/inter/inter.css');
+        .tab-active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+            font-weight: 600;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-todo { background-color: #9ca3af; }
+        .status-inprogress { background-color: #f59e0b; }
+        .status-done { background-color: #22c55e; }
+
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: 1px solid #e5e7eb;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="%236b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1.25em 1.25em;
+            padding-right: 2rem;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Projekt: Hyperlokale KI-Wetter PWA</h1>
+            <p class="text-gray-600 mt-2">Ein interaktiver Überblick über die Projektphasen und -ziele.</p>
+        </header>
+
+        <main>
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8 border border-gray-200">
+                <h2 class="text-xl font-bold text-center text-gray-800 mb-4">Projektfortschritt</h2>
+                <div class="chart-container relative mx-auto" style="max-width: 300px; height: 300px;">
+                    <canvas id="progressChart"></canvas>
+                </div>
+                 <p class="text-center text-gray-500 mt-4 text-sm">Ändern Sie den Status einer User Story, um das Diagramm live zu aktualisieren.</p>
+            </div>
+            
+            <div id="app">
+                <div class="border-b border-gray-200 mb-6">
+                    <nav class="-mb-px flex space-x-4 md:space-x-8" id="epic-tabs" aria-label="Tabs">
+                    </nav>
+                </div>
+                <div id="epic-content">
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const projectData = {
+            epics: [
+                { 
+                    id: "epic-1", 
+                    title: "MVP - Live-Wetterdaten",
+                    goal: "Ein Nutzer kann die PWA auf seinem Handy oder im Browser öffnen und sieht das aktuelle Wetter und eine Vorhersage für einen festen Standort (z.B. Köln), basierend auf den Daten von Open-Meteo."
+                },
+                { 
+                    id: "epic-2", 
+                    title: "Backend-Persistenz",
+                    goal: "Das Backend speichert die abgerufenen Wetterdaten systematisch in einer PostgreSQL-Datenbank, um eine historische Datenbasis für das zukünftige KI-Modell aufzubauen."
+                },
+                { 
+                    id: "epic-3", 
+                    title: "Integration der Wetterstation",
+                    goal: "Die Daten der persönlichen Wetterstation (z.B. Ecowitt) werden vom Backend empfangen und ebenfalls in der Datenbank gespeichert, um hyperlokale Messwerte zu erhalten."
+                },
+                { 
+                    id: "epic-4", 
+                    title: "KI-Modell Integration",
+                    goal: "Ein mit XGBoost trainiertes Modell nutzt die gesammelten historischen Daten (öffentlich + lokal), um eine verbesserte, hyperlokale Vorhersage zu erstellen, welche die Vorhersage von Open-Meteo ersetzt."
+                },
+            ],
+            stories: [
+                { epicId: "epic-1", id: "PWA-1", title: "Backend-Proxy einrichten", description: "Als Entwickler möchte ich einen FastAPI-Endpunkt /api/v1/weather/cologne erstellen, damit das Frontend Wetterdaten abrufen kann, ohne direkt mit Open-Meteo zu kommunizieren.", criteria: ["Der Endpunkt ruft die Open-Meteo API für den Standort Köln auf.", "Der Endpunkt gibt die erhaltenen JSON-Daten 1:1 an den Client weiter.", "Es ist noch keine Datenbank involviert."], status: "todo" },
+                { epicId: "epic-1", id: "PWA-2", title: "Grundstruktur der Flutter PWA", description: "Als Entwickler möchte ich ein neues Flutter-Projekt erstellen, das als PWA kompiliert und im Browser aufgerufen werden kann.", criteria: ["Das Projekt kann mit `flutter build web` gebaut werden.", "Die kompilierte Web-App kann über einen lokalen Webserver aufgerufen werden.", "Ein leeres Grund-Layout mit einem Titel ist sichtbar."], status: "todo" },
+                { epicId: "epic-1", id: "PWA-3", title: "Aktuelles Wetter anzeigen", description: "Als Nutzer möchte ich auf dem Startbildschirm die aktuelle Temperatur, das Wettersymbol und die gefühlte Temperatur sehen.", criteria: ["Die App ruft beim Start den Endpunkt /api/v1/weather/cologne auf.", "Die aktuelle Temperatur wird groß angezeigt.", "Ein passendes Icon und die gefühlte Temperatur werden angezeigt."], status: "todo" },
+                { epicId: "epic-1", id: "PWA-4", title: "Tägliche Vorhersage anzeigen", description: "Als Nutzer möchte ich eine Liste der nächsten 7 Tage mit Höchst-/Tiefsttemperatur und Wettersymbol sehen.", criteria: ["Die Daten aus dem API-Aufruf werden genutzt, um eine 7-Tage-Vorhersage zu rendern.", "Jeder Listeneintrag zeigt Wochentag, Icon, Höchst- und Tiefsttemperatur."], status: "todo" },
+                { epicId: "epic-1", id: "PWA-5", title: "Stündliche Vorhersage anzeigen", description: "Als Nutzer möchte ich eine horizontale Liste der nächsten 24 Stunden mit Temperatur und Wettersymbol sehen.", criteria: ["Die stündlichen Daten werden in einer scrollbaren, horizontalen Ansicht dargestellt.", "Jeder Eintrag zeigt Uhrzeit, Icon und Temperatur."], status: "todo" },
+
+                { epicId: "epic-2", id: "DB-1", title: "PostgreSQL-Datenbank aufsetzen", description: "Als Entwickler möchte ich eine PostgreSQL-Datenbank (via Docker) aufsetzen und ein Datenbankschema für die Wetterdaten definieren.", criteria: ["Ein Docker-Compose-File startet einen PostgreSQL-Container.", "Ein Schema mit Tabellen (z.B. weather_logs) ist definiert.", "Das FastAPI-Backend kann sich erfolgreich mit der Datenbank verbinden."], status: "todo" },
+                { epicId: "epic-2", id: "DB-2", title: "Daten-Collector-Service", description: "Als Entwickler möchte ich einen Hintergrundprozess einrichten, der regelmäßig die Open-Meteo API abfragt und die Daten in der PostgreSQL-Datenbank speichert.", criteria: ["Ein Skript (z.B. mittels apscheduler in FastAPI) läuft periodisch.", "Die abgerufenen Daten werden in die Tabelle weather_logs geschrieben.", "Das Frontend ist von dieser Änderung unberührt."], status: "todo" },
+                { epicId: "epic-2", id: "DB-3", title: "API von Datenbank speisen", description: "Als Entwickler möchte ich den Endpunkt /api/v1/weather/cologne so anpassen, dass er die Daten aus der Datenbank liest.", criteria: ["Der Endpunkt holt den neuesten Datensatz aus der weather_logs Tabelle.", "Die API-Antwort an das Frontend bleibt strukturell identisch.", "Reduziert Latenz und Abhängigkeit von der externen API."], status: "todo" },
+
+                { epicId: "epic-3", id: "HW-1", title: "Empfangs-Endpunkt für Wetterstation", description: "Als Entwickler möchte ich einen neuen FastAPI-Endpunkt /api/ingress/weatherstation erstellen, der Daten meiner Wetterstation empfangen kann.", criteria: ["Der Endpunkt kann die POST-Requests der Station entgegennehmen und validieren.", "Die empfangenen Daten werden zur Fehlersuche geloggt."], status: "todo" },
+                { epicId: "epic-3", id: "HW-2", title: "Speichern der lokalen Daten", description: "Als Entwickler möchte ich die empfangenen Daten in einer separaten Tabelle (z.B. local_weather_logs) in PostgreSQL speichern.", criteria: ["Ein neues Datenbankschema für die lokalen Messwerte wird erstellt.", "Die validierten Daten werden erfolgreich in diese neue Tabelle geschrieben."], status: "todo" },
+                { epicId: "epic-3", id: "HW-3", title: "Anzeige der lokalen Daten (Optional)", description: "Als Nutzer möchte ich in der App 'Live'-Daten meiner Station sehen, um den Unterschied zu Modelldaten zu sehen.", criteria: ["Ein neuer API-Endpunkt gibt die neuesten lokalen Daten zurück.", "Das Frontend zeigt diese Daten in einem separaten UI-Element an."], status: "todo" },
+
+                { epicId: "epic-4", id: "ML-1", title: "Daten-Exploration & Feature Engineering", description: "Als Data Scientist möchte ich die gesammelten Daten in einem Jupyter Notebook analysieren, bereinigen und aufbereiten.", criteria: ["Ein Notebook kann auf die PostgreSQL-Daten zugreifen.", "Daten sind visualisiert und Ausreißer/fehlende Werte behandelt.", "Relevante Features sind erstellt."], status: "todo" },
+                { epicId: "epic-4", id: "ML-2", title: "XGBoost-Modell trainieren & evaluieren", description: "Als Data Scientist möchte ich ein XGBoost-Modell trainieren und seine Genauigkeit bewerten.", criteria: ["Das Modell wird mit den aufbereiteten Daten trainiert.", "Die Genauigkeit wird anhand einer Testmenge gemessen (z.B. mit RMSE, MAE).", "Das finale, trainierte Modell wird als Datei gespeichert."], status: "todo" },
+                { epicId: "epic-4", id: "ML-3", title: "Vorhersage-Endpunkt erstellen", description: "Als Entwickler möchte ich einen neuen Endpunkt /api/v1/predict/cologne erstellen, der das KI-Modell lädt und eine Vorhersage generiert.", criteria: ["Der Endpunkt lädt das Modell und die neuesten Daten.", "Er führt eine Vorhersage aus und gibt diese in einem definierten JSON-Format zurück."], status: "todo" },
+                { epicId: "epic-4", id: "ML-4", title: "PWA auf KI-Vorhersage umstellen", description: "Als Nutzer möchte ich, dass die App die Vorhersage des KI-Modells nutzt, um eine genauere Prognose zu erhalten.", criteria: ["Das Frontend ruft den /api/v1/predict/cologne Endpunkt auf.", "Die App zeigt die vom Modell generierte Vorhersage an. Die UI bleibt unverändert."], status: "todo" },
+            ]
+        };
+
+        const statusConfig = {
+            todo: { label: "To Do", color: "#9ca3af", class: "status-todo" },
+            inprogress: { label: "In Arbeit", color: "#f59e0b", class: "status-inprogress" },
+            done: { label: "Fertig", color: "#22c55e", class: "status-done" },
+        };
+
+        let currentEpicId = projectData.epics[0].id;
+        let progressChart;
+
+        function renderTabs() {
+            const tabsContainer = document.getElementById('epic-tabs');
+            tabsContainer.innerHTML = projectData.epics.map((epic, index) => `
+                <a href="#" 
+                   data-epic-id="${epic.id}" 
+                   class="epic-tab whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:border-gray-300 hover:text-gray-700 ${index === 0 ? 'tab-active' : ''}">
+                    ${index + 1}. ${epic.title}
+                </a>
+            `).join('');
+        }
+
+        function renderContent(epicId) {
+            currentEpicId = epicId;
+            const epic = projectData.epics.find(e => e.id === epicId);
+            const stories = projectData.stories.filter(s => s.epicId === epicId);
+            const contentContainer = document.getElementById('epic-content');
+
+            contentContainer.innerHTML = `
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg mb-6">
+                    <h2 class="text-2xl font-bold mb-2 text-gray-800">${epic.title}</h2>
+                    <p class="text-gray-700">${epic.goal}</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${stories.map(story => `
+                        <div class="card flex flex-col justify-between p-5" data-story-id="${story.id}">
+                            <div>
+                                <div class="flex justify-between items-start mb-3">
+                                    <span class="font-bold text-lg text-gray-800">${story.id}: ${story.title}</span>
+                                </div>
+                                <p class="text-gray-600 mb-4 text-sm">${story.description}</p>
+                                <div class="mb-4">
+                                    <span class="font-semibold text-sm text-gray-700">Akzeptanzkriterien:</span>
+                                    <ul class="list-disc list-inside mt-2 text-sm text-gray-600 space-y-1">
+                                        ${story.criteria.map(c => `<li>${c.replace(/`/g, '<code class="bg-gray-200 text-gray-700 rounded px-1 text-xs">').replace(/`/g, '</code>')}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            </div>
+                             <div class="mt-auto pt-4">
+                                <select class="status-selector w-full bg-gray-100 border border-gray-300 text-gray-700 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" data-story-id="${story.id}">
+                                    <option value="todo" ${story.status === 'todo' ? 'selected' : ''}>To Do</option>
+                                    <option value="inprogress" ${story.status === 'inprogress' ? 'selected' : ''}>In Arbeit</option>
+                                    <option value="done" ${story.status === 'done' ? 'selected' : ''}>Fertig</option>
+                                </select>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            document.querySelectorAll('.epic-tab').forEach(tab => {
+                tab.classList.toggle('tab-active', tab.dataset.epicId === epicId);
+            });
+        }
+        
+        function updateChart() {
+            const counts = { todo: 0, inprogress: 0, done: 0 };
+            projectData.stories.forEach(story => {
+                counts[story.status]++;
+            });
+
+            const data = {
+                labels: [statusConfig.todo.label, statusConfig.inprogress.label, statusConfig.done.label],
+                datasets: [{
+                    data: [counts.todo, counts.inprogress, counts.done],
+                    backgroundColor: [statusConfig.todo.color, statusConfig.inprogress.color, statusConfig.done.color],
+                    borderColor: '#f8f9fa',
+                    borderWidth: 4,
+                    hoverOffset: 8
+                }]
+            };
+
+            if (progressChart) {
+                progressChart.data = data;
+                progressChart.update();
+            } else {
+                const ctx = document.getElementById('progressChart').getContext('2d');
+                progressChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 15,
+                                    padding: 20,
+                                    font: {
+                                        size: 14
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                            const percentage = total > 0 ? (context.parsed / total * 100).toFixed(1) + '%' : '0%';
+                                            label += `${context.parsed} Stories (${percentage})`;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderTabs();
+            renderContent(currentEpicId);
+            updateChart();
+
+            document.getElementById('epic-tabs').addEventListener('click', (e) => {
+                e.preventDefault();
+                const tab = e.target.closest('.epic-tab');
+                if (tab) {
+                    renderContent(tab.dataset.epicId);
+                }
+            });
+
+            document.getElementById('epic-content').addEventListener('change', (e) => {
+                if (e.target.classList.contains('status-selector')) {
+                    const storyId = e.target.dataset.storyId;
+                    const newStatus = e.target.value;
+                    const story = projectData.stories.find(s => s.id === storyId);
+                    if (story) {
+                        story.status = newStatus;
+                        updateChart();
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
